@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepFlow | Mindful Archive</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #020617; --glass: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.08); --accent: #6366f1;
+            --text: #f8fafc; --transition: 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body.theme-vortex { --accent: #6366f1; --bg: #020617; }
+        body.theme-spiral { --accent: #10b981; --bg: #020c08; }
+        body.theme-pulse { --accent: #f43f5e; --bg: #0c0202; }
+
+        body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: 'Plus Jakarta Sans', sans-serif; overflow: hidden; height: 100vh; transition: background var(--transition); }
+
+        #app { display: grid; grid-template-columns: 380px 1fr; height: 100vh; position: relative; z-index: 10; transition: var(--transition); }
+        body.is-focus #app { grid-template-columns: 0px 1fr; }
+        body.is-focus aside { transform: translateX(-100%); opacity: 0; }
+
+        aside { 
+            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(50px); padding: 30px; 
+            border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 20px; 
+            overflow-y: auto;
+        }
+
+        .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+        .logo-box { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; box-shadow: 0 0 20px var(--accent); transition: var(--transition); }
+        .logo-text { font-family: 'Playfair Display', serif; font-size: 1.4rem; }
+
+        .glass-card { background: var(--glass); border: 1px solid var(--border); border-radius: 20px; padding: 20px; }
+        h4 { margin: 0 0 12px 0; font-size: 0.65rem; letter-spacing: 2px; text-transform: uppercase; opacity: 0.5; }
+        
+        textarea { 
+            width: 100%; height: 100px; background: transparent; border: none; outline: none; 
+            color: var(--text); font-size: 0.95rem; line-height: 1.6; resize: none; font-family: inherit;
+        }
+
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button { 
+            background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: white; 
+            padding: 10px; border-radius: 12px; cursor: pointer; transition: 0.3s; font-size: 0.75rem; font-weight: 500;
+        }
+        button:hover { background: var(--accent); color: black; }
+        button.active { background: var(--accent); color: black; box-shadow: 0 0 15px var(--accent); }
+
+        .archive-list { display: flex; flex-direction: column; gap: 8px; max-height: 150px; overflow-y: auto; }
+        .archive-item { 
+            background: rgba(255,255,255,0.03); border: 1px solid var(--border); padding: 10px; 
+            border-radius: 10px; font-size: 0.7rem; cursor: pointer; transition: 0.2s;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.7;
+        }
+        .archive-item:hover { opacity: 1; border-color: var(--accent); background: rgba(255,255,255,0.05); }
+
+        main { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        #hypnoCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        #exit-btn {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            z-index: 100; background: white; color: black; border: none; 
+            padding: 12px 40px; border-radius: 30px; font-weight: bold; cursor: pointer;
+            display: none; box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+        }
+        body.is-focus #exit-btn { display: block; }
+
+        #timer-display { font-size: 1.2rem; font-weight: bold; color: var(--accent); margin-bottom: 5px; }
+    </style>
+</head>
+<body class="theme-vortex">
+
+    <div id="app">
+        <aside>
+            <div class="logo">
+                <div class="logo-box"></div>
+                <div class="logo-text">DeepFlow</div>
+            </div>
+
+            <div class="glass-card">
+                <h4>New Reflection</h4>
+                <textarea id="journalInput" placeholder="What's on your mind?"></textarea>
+                <button onclick="saveJournal()" style="width: 100%; margin-top: 10px; background: var(--accent); color: black;">Save Log</button>
+            </div>
+
+            <div class="glass-card">
+                <h4>Archive & Focus Logs</h4>
+                <div id="archiveList" class="archive-list"></div>
+            </div>
+
+            <div class="glass-card">
+                <h4>Engine & Sound</h4>
+                <div class="grid">
+                    <button id="btn-vortex" onclick="setMode('vortex', 'theme-vortex')" class="active">Vortex</button>
+                    <button id="btn-spiral" onclick="setMode('spiral', 'theme-spiral')">Spiral</button>
+                    <button id="btn-pulse" onclick="setMode('pulse', 'theme-pulse')">Pulse</button>
+                    <button id="btn-sound" onclick="toggleSound()">🔈 Start Audio</button>
+                </div>
+            </div>
+
+            <div class="glass-card" style="margin-top: auto; text-align: center;">
+                <div id="timer-display">00:00</div>
+                <button onclick="enterFocus()" style="width: 100%; background: white; color: black; font-weight: bold;">START DEEP FOCUS</button>
+            </div>
+        </aside>
+
+        <main><canvas id="hypnoCanvas"></canvas></main>
+    </div>
+
+    <button id="exit-btn" onclick="exitFocus()">EXIT SESSION (ESC)</button>
+
+    <audio id="audio-vortex" loop src="https://actions.google.com/sounds/v1/science_fiction/deep_space_drone.ogg"></audio>
+    <audio id="audio-spiral" loop src="https://actions.google.com/sounds/v1/ambiences/wind_dark_howl.ogg"></audio>
+    <audio id="audio-pulse" loop src="https://actions.google.com/sounds/v1/water/deep_submerge.ogg"></audio>
+
+    <script>
+        const canvas = document.getElementById('hypnoCanvas');
+        const ctx = canvas.getContext('2d');
+        const journalInput = document.getElementById('journalInput');
+        const archiveList = document.getElementById('archiveList');
+        const timerDisplay = document.getElementById('timer-display');
+        
+        let mode = 'vortex';
+        let currentAudio = null;
+        let angle = 0;
+        let isRunning = false;
+        let raf, timerInterval;
+        let secondsPassed = 0;
+
+        // --- PERSISTENCE & ARCHIVE ---
+        function saveJournal(duration = null) {
+            const text = journalInput.value.trim();
+            if (!text && !duration) return;
+            
+            const logs = JSON.parse(localStorage.getItem('df_archive') || "[]");
+            const entry = {
+                id: Date.now(),
+                date: new Date().toLocaleString('en-US'),
+                content: text || "Unwritten Session",
+                duration: duration || "No timer"
+            };
+            logs.unshift(entry);
+            localStorage.setItem('df_archive', JSON.stringify(logs));
+            journalInput.value = "";
+            renderArchive();
+        }
+
+        function renderArchive() {
+            const logs = JSON.parse(localStorage.getItem('df_archive') || "[]");
+            archiveList.innerHTML = logs.length ? "" : "<p style='font-size:0.6rem; opacity:0.3'>No logs found.</p>";
+            logs.forEach(log => {
+                const item = document.createElement('div');
+                item.className = 'archive-item';
+                const durText = log.duration ? ` [${log.duration}]` : "";
+                item.innerText = `${log.date}${durText}: ${log.content}`;
+                item.onclick = () => journalInput.value = log.content;
+                archiveList.appendChild(item);
+            });
+        }
+
+        // --- TIMER ENGINE ---
+        function updateTimer() {
+            secondsPassed++;
+            const mins = Math.floor(secondsPassed / 60).toString().padStart(2, '0');
+            const secs = (secondsPassed % 60).toString().padStart(2, '0');
+            timerDisplay.innerText = `${mins}:${secs}`;
+        }
+
+        // --- AUDIO & MODES ---
+        function setMode(m, theme) {
+            const wasPlaying = currentAudio && !currentAudio.paused;
+            if(currentAudio) currentAudio.pause();
+            mode = m;
+            document.body.className = theme;
+            document.querySelectorAll('.grid button').forEach(b => b.classList.remove('active'));
+            document.getElementById(`btn-${m}`).classList.add('active');
+            currentAudio = document.getElementById(`audio-${m}`);
+            if(wasPlaying) currentAudio.play();
+        }
+
+        function toggleSound() {
+            const btn = document.getElementById('btn-sound');
+            if(!currentAudio) currentAudio = document.getElementById('audio-vortex');
+            if (currentAudio.paused) {
+                currentAudio.play();
+                btn.innerText = "🔊 Audio: ON";
+                btn.classList.add('active');
+            } else {
+                currentAudio.pause();
+                btn.innerText = "🔈 Audio: OFF";
+                btn.classList.remove('active');
+            }
+        }
+
+        // --- FOCUS ENGINE ---
+        function enterFocus() {
+            document.body.classList.add('is-focus');
+            isRunning = true;
+            secondsPassed = 0;
+            timerDisplay.innerText = "00:00";
+            timerInterval = setInterval(updateTimer, 1000);
+            if (!currentAudio || currentAudio.paused) toggleSound();
+            draw();
+        }
+
+        function exitFocus() {
+            document.body.classList.remove('is-focus');
+            isRunning = false;
+            clearInterval(timerInterval);
+            cancelAnimationFrame(raf);
+            
+            if(secondsPassed > 5) { // Only save sessions longer than 5 seconds
+                const finalTime = timerDisplay.innerText;
+                saveJournal(`Focus: ${finalTime}`);
+            }
+        }
+
+        function draw() {
+            if (!isRunning) return;
+            const bg = getComputedStyle(document.body).getPropertyValue('--bg').trim();
+            ctx.fillStyle = bg;
+            ctx.globalAlpha = 0.15;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.globalAlpha = 1.0;
+
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            angle += 0.018;
+            const accent = getComputedStyle(document.body).getPropertyValue('--accent');
+
+            if (mode === 'vortex') {
+                for (let i = 0; i < 350; i++) {
+                    let a = angle + i * 0.05;
+                    let d = i * (canvas.width / 450);
+                    ctx.beginPath();
+                    ctx.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, i * 0.06, 0, Math.PI * 2);
+                    ctx.fillStyle = accent; ctx.globalAlpha = 1 - i / 350; ctx.fill();
+                }
+            } else if (mode === 'spiral') {
+                for (let i = 0; i < 600; i++) {
+                    let r = i * 0.95;
+                    let th = i * 0.1375 + angle;
+                    ctx.beginPath();
+                    ctx.arc(cx + Math.cos(th) * (i * 1.8), cy + Math.sin(th) * (i * 1.8), 2.5, 0, Math.PI * 2);
+                    ctx.fillStyle = accent; ctx.globalAlpha = 1 - i / 600; ctx.fill();
+                }
+            } else if (mode === 'pulse') {
+                for (let i = 0; i < 8; i++) {
+                    let s = (Math.sin(angle + i * 0.4) * 150) + 200;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, Math.abs(s), 0, Math.PI * 2);
+                    ctx.strokeStyle = accent; ctx.lineWidth = 12 - i; ctx.globalAlpha = 0.2; ctx.stroke();
+                }
+            }
+            raf = requestAnimationFrame(draw);
+        }
+
+        window.addEventListener('keydown', (e) => { if (e.key === "Escape") exitFocus(); });
+        window.onresize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        renderArchive();
+    </script>
+</body>
+</html>
